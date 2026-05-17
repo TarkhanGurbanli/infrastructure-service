@@ -1,0 +1,186 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  # ── Config Server ─────────────────────────────────────────────────────────
+  config:
+    import: optional:configserver:http://${CONFIG_SERVER_USER:zefflix}:${CONFIG_SERVER_PASSWORD:zefflix-secret}@${CONFIG_SERVER_HOST:localhost}:8888
+
+  # ── Redis (Rate Limiting üçün) ────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+  # ── Cloud Gateway ─────────────────────────────────────────────────────────
+  cloud:
+    gateway:
+      # Eureka-dan avtomatik discovery
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 4
+            redis-rate-limiter.burstCapacity: 20
+            key-resolver: "#{@userKeyResolver}"
+
+      routes:
+
+        # ── Auth Service ────────────────────────────────────────────────────
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**, /oauth2/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-cb
+                fallbackUri: forward:/fallback/auth
+            - name: Retry
+              args:
+                retries: 2
+                statuses: SERVICE_UNAVAILABLE
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+
+        # ── User Service ────────────────────────────────────────────────────
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/users/**, /api/v1/admin/users/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: user-cb
+                fallbackUri: forward:/fallback/user
+
+        # ── Content Service ─────────────────────────────────────────────────
+        - id: content-service
+          uri: lb://content-service
+          predicates:
+            - Path=/api/v1/contents/**, /api/v1/admin/contents/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: content-cb
+                fallbackUri: forward:/fallback/content
+            - name: Retry
+              args:
+                retries: 2
+                statuses: SERVICE_UNAVAILABLE
+                methods: GET
+
+        # ── Person Service ──────────────────────────────────────────────────
+        - id: person-service
+          uri: lb://person-service
+          predicates:
+            - Path=/api/v1/persons/**, /api/v1/admin/persons/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: person-cb
+                fallbackUri: forward:/fallback/person
+
+        # ── Search Service ──────────────────────────────────────────────────
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/v1/search/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: search-cb
+                fallbackUri: forward:/fallback/search
+
+        # ── Media Service ───────────────────────────────────────────────────
+        - id: media-service
+          uri: lb://media-service
+          predicates:
+            - Path=/api/v1/media/**, /api/v1/admin/media/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: media-cb
+                fallbackUri: forward:/fallback/media
+
+    # ── Circuit Breaker (Resilience4j) ───────────────────────────────────────
+    circuitbreaker:
+      resilience4j:
+        enabled: true
+
+# ── Eureka Client ──────────────────────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      defaultZone: http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD:eureka-secret}@${EUREKA_HOST:localhost}:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+    registry-fetch-interval-seconds: 10
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+# ── Resilience4j Circuit Breaker ──────────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+      content-cb:
+        sliding-window-size: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 5
+      # Qalan servisler ucun default degerler tətbiq olunur
+  timelimiter:
+    instances:
+      default:
+        timeout-duration: 5s
+
+# ── Zefflix Gateway özəl konfiqurasiya ────────────────────────────────────────
+zefflix:
+  gateway:
+    jwt-secret: ${JWT_SECRET:change-this-in-production-min-32-chars!!}
+    rate-limit:
+      anonymous-requests-per-minute: 30
+      authenticated-requests-per-minute: 200
+      admin-requests-per-minute: 1000
+
+# ── Actuator ──────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+    gateway:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: WARN
+    az.zefflix.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{X-Request-Id}] %-5level %logger{36} - %msg%n"

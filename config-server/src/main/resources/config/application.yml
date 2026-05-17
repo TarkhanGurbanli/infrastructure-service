@@ -1,0 +1,4 @@
+# Shared config for all services
+logging:
+  level:
+    az.zefflix: INFO

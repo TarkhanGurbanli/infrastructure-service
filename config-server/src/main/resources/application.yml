@@ -1,0 +1,45 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+
+  # ── Config Git backend ──────────────────────────────────────────────────────
+  cloud:
+    config:
+      server:
+        git:
+          # Git repo-da bütün servislərin konfiqurasiyası saxlanılır
+          uri: ${CONFIG_GIT_URI:https://github.com/TarkhanGurbanli/zefflix-config}
+          default-label: ${CONFIG_GIT_BRANCH:main}
+          clone-on-start: true
+          force-pull: true
+          # Hər servis üçün ayrı qovluq
+          search-paths: '{application}'
+          timeout: 10
+        # Local fallback (inkişaf mühiti üçün)
+        native:
+          search-locations: classpath:/config
+
+  # ── Security: Config Server-ə giriş qorunur ────────────────────────────────
+  security:
+    user:
+      name: ${CONFIG_SERVER_USER:zefflix}
+      password: ${CONFIG_SERVER_PASSWORD:zefflix-secret}
+
+# ── Actuator ───────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh,bus-refresh
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.config: DEBUG
+    az.zefflix: INFO

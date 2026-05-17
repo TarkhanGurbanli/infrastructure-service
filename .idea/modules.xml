@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/api-gateway/infrastructure-service.api-gateway.main.iml" filepath="$PROJECT_DIR$/.idea/modules/api-gateway/infrastructure-service.api-gateway.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/config-server/infrastructure-service.config-server.main.iml" filepath="$PROJECT_DIR$/.idea/modules/config-server/infrastructure-service.config-server.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/eureka-server/infrastructure-service.eureka-server.main.iml" filepath="$PROJECT_DIR$/.idea/modules/eureka-server/infrastructure-service.eureka-server.main.iml" />
+    </modules>
+  </component>
+</project>
